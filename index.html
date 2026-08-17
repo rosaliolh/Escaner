@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escáner QR - Copiar Información</title>
+    <!-- Librería para escanear QR -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        
+        video {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .btn-copiar {
+            background-color: #2196F3;
+        }
+        
+        .btn-copiar:hover {
+            background-color: #1976D2;
+        }
+        
+        .btn-limpiar {
+            background-color: #f44336;
+        }
+        
+        .btn-limpiar:hover {
+            background-color: #d32f2f;
+        }
+        
+        #resultado {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            min-height: 50px;
+            word-wrap: break-word;
+        }
+        
+        .mensaje {
+            color: green;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        
+        .oculto {
+            display: none;
+        }
+        
+        .instrucciones {
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Escáner de Códigos QR</h1>
+        
+        <video id="video" autoplay playsinline></video>
+        
+        <div>
+            <button id="btnIniciar">📷 Iniciar Escáner</button>
+            <button id="btnDetener" class="oculto">⏹ Detener</button>
+        </div>
+        
+        <div id="resultado">
+            <p class="instrucciones">El código QR escaneado aparecerá aquí</p>
+        </div>
+        
+        <div>
+            <button id="btnCopiar" class="btn-copiar oculto">📋 Copiar Información</button>
+            <button id="btnLimpiar" class="btn-limpiar oculto">🗑 Limpiar</button>
+        </div>
+        
+        <div id="mensaje" class="mensaje oculto"></div>
+    </div>
+    
+    <script>
+        const video = document.getElementById('video');
+        const btnIniciar = document.getElementById('btnIniciar');
+        const btnDetener = document.getElementById('btnDetener');
+        const btnCopiar = document.getElementById('btnCopiar');
+        const btnLimpiar = document.getElementById('btnLimpiar');
+        const resultado = document.getElementById('resultado');
+        const mensaje = document.getElementById('mensaje');
+        
+        let stream = null;
+        let escaneoActivo = false;
+        let informacionQR = '';
+        
+        // Función para iniciar la cámara
+        async function iniciarCamara() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }
+                });
+                
+                video.srcObject = stream;
+                btnIniciar.classList.add('oculto');
+                btnDetener.classList.remove('oculto');
+                escaneoActivo = true;
+                
+                escanearQR();
+            } catch (error) {
+                console.error('Error al acceder a la cámara:', error);
+                alert('No se pudo acceder a la cámara. Verifica que tengas los permisos necesarios.');
+            }
+        }
+        
+        // Función para detener la cámara
+        function detenerCamara() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+                escaneoActivo = false;
+                btnIniciar.classList.remove('oculto');
+                btnDetener.classList.add('oculto');
+            }
+        }
+        
+        // Función para escanear QR
+        function escanearQR() {
+            if (!escaneoActivo) return;
+            
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                // Crear canvas para procesar el frame
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Obtener datos de la imagen
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // Decodificar QR
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                
+                if (code) {
+                    // QR detectado
+                    informacionQR = code.data;
+                    mostrarInformacion(informacionQR);
+                    // detenerCamara(); // Descomenta para detener automáticamente después de escanear
+                }
+            }
+            
+            // Continuar escaneando
+            if (escaneoActivo) {
+                requestAnimationFrame(escanearQR);
+            }
+        }
+        
+        // Función para mostrar la información
+        function mostrarInformacion(info) {
+            resultado.innerHTML = `<strong>Información del QR:</strong><br>${info}`;
+            btnCopiar.classList.remove('oculto');
+            btnLimpiar.classList.remove('oculto');
+            mensaje.classList.add('oculto');
+        }
+        
+        // Función para copiar al portapapeles
+        async function copiarInformacion() {
+            try {
+                await navigator.clipboard.writeText(informacionQR);
+                mensaje.textContent = '✅ ¡Información copiada al portapapeles!';
+                mensaje.classList.remove('oculto');
+                
+                // Ocultar mensaje después de 3 segundos
+                setTimeout(() => {
+                    mensaje.classList.add('oculto');
+                }, 3000);
+            } catch (error) {
+                console.error('Error al copiar:', error);
+                alert('No se pudo copiar la información. Intenta manualmente.');
+            }
+        }
+        
+        // Función para limpiar
+        function limpiarInformacion() {
+            informacionQR = '';
+            resultado.innerHTML = '<p class="instrucciones">El código QR escaneado aparecerá aquí</p>';
+            btnCopiar.classList.add('oculto');
+            btnLimpiar.classList.add('oculto');
+            mensaje.classList.add('oculto');
+        }
+        
+        // Event listeners
+        btnIniciar.addEventListener('click', iniciarCamara);
+        btnDetener.addEventListener('click', detenerCamara);
+        btnCopiar.addEventListener('click', copiarInformacion);
+        btnLimpiar.addEventListener('click', limpiarInformacion);
+        
+        // Limpiar recursos al cargar la página
+        window.addEventListener('beforeunload', detenerCamara);
+    </script>
+</body>
+</html>
